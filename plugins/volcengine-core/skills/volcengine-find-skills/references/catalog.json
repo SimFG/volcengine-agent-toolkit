@@ -302,6 +302,26 @@
           "keywords": ["sdk", "code generation", "示例代码", "python", "go", "java", "nodejs", "php"]
         }
       ]
+    },
+    {
+      "name": "volcengine-context-search",
+      "display_name": "Volcengine Context Search",
+      "domain": "Context Search",
+      "domain_en": "Context Search",
+      "default": false,
+      "description": "Query and manage Volcengine Context Search scenes, data, agents, models, and inference services through the production OpenAPI.",
+      "short_description": "Manage Context Search scenes, data, and agents",
+      "keywords": ["context search", "ctxsearch", "上下文搜索", "agentic search", "multimodal search", "个性化搜推", "psr"],
+      "default_prompts": ["List my Context Search scenes.", "Manage this multimodal search scene."],
+      "skills": [
+        {
+          "name": "volcengine-context-search",
+          "path": "plugins/volcengine-context-search/skills/volcengine-context-search",
+          "summary": "Query and manage Context Search scenes, agent conversations, multimodal data, models, and inference services with a dependency-free OpenAPI script.",
+          "summary_zh": "通过零依赖 OpenAPI 脚本查询和管理 Context Search 场景、Agent 对话、多模态数据、模型与推理服务。",
+          "keywords": ["context search", "ctxsearch", "场景列表", "上下文搜索", "agentic", "multimodal", "psr", "检索", "数据入库", "mcp"]
+        }
+      ]
     }
   ]
 }

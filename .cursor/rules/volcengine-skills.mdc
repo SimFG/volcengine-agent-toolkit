@@ -34,6 +34,7 @@ Optional catalogued skills:
 - `volcengine-iac` — `volcengine-service-support`; Manage Volcengine infrastructure with Terraform and infrastructure as code.
 - `volcengine-api` — `volcengine-service-support`; Query Volcengine API specifications, parameters, errors, and response structures.
 - `volcengine-sdk-generator` — `volcengine-service-support`; Generate accurate, runnable Volcengine SDK examples in supported languages.
+- `volcengine-context-search` — `volcengine-context-search`; Query and manage Context Search scenes, agent conversations, multimodal data, models, and inference services with a dependency-free OpenAPI script.
 <!-- END GENERATED: skill-catalog -->
 
 When an optional skill is needed, or an active Volcengine task exceeds the capabilities of the

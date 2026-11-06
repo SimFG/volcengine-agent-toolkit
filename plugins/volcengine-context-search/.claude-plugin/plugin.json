@@ -1,0 +1,26 @@
+{
+  "name": "volcengine-context-search",
+  "description": "Query and manage Volcengine Context Search scenes, data, agents, models, and inference services through the production OpenAPI.",
+  "version": "1.3.3",
+  "author": {
+    "name": "Volcengine Team"
+  },
+  "homepage": "https://github.com/volcengine/volcengine-agent-toolkit",
+  "repository": "https://github.com/volcengine/volcengine-agent-toolkit",
+  "license": "MIT",
+  "keywords": [
+    "volcengine",
+    "cloud",
+    "context search",
+    "ctxsearch",
+    "上下文搜索",
+    "agentic search",
+    "multimodal search",
+    "个性化搜推",
+    "psr",
+    "volcengine-context-search"
+  ],
+  "skills": [
+    "./skills/"
+  ]
+}

@@ -42,6 +42,11 @@
       "name": "volcengine-service-support",
       "source": "./plugins/volcengine-service-support",
       "description": "Route product transactions (purchase, price enquiry, unsubscribe), prepare and deploy applications, manage infrastructure as code, explore OpenAPI specifications, and generate runnable SDK examples."
+    },
+    {
+      "name": "volcengine-context-search",
+      "source": "./plugins/volcengine-context-search",
+      "description": "Query and manage Volcengine Context Search scenes, data, agents, models, and inference services through the production OpenAPI."
     }
   ]
 }

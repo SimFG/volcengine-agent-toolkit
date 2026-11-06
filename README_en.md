@@ -43,6 +43,7 @@ For `ve arkcli ...`, `ve` translates the caller metadata. The Agent does not dup
 | `volcengine-security` | Security | `volcengine-compliance`, `volcengine-cloud-trail` | No |
 | `volcengine-identity-access-control` | Identity and Access Control | `volcengine-landing-zone` | No |
 | `volcengine-service-support` | Service Support | `volcengine-sale`, `volcengine-prepare`, `volcengine-deploy`, `volcengine-iac`, `volcengine-api`, `volcengine-sdk-generator` | No |
+| `volcengine-context-search` | Context Search | `volcengine-context-search` | No |
 <!-- END GENERATED: plugin-catalog -->
 
 The core marketplace entry uses `INSTALLED_BY_DEFAULT`; all optional plugins use `AVAILABLE`.
@@ -76,6 +77,7 @@ are maintained in their plugins; the sync script generates the copies.
 | [`volcengine-iac`](./skills/specialized/service-support/volcengine-iac/SKILL.md) | `volcengine-service-support` | Manage Volcengine infrastructure with Terraform and infrastructure as code. |
 | [`volcengine-api`](./skills/specialized/service-support/volcengine-api/SKILL.md) | `volcengine-service-support` | Query Volcengine API specifications, parameters, errors, and response structures. |
 | [`volcengine-sdk-generator`](./skills/specialized/service-support/volcengine-sdk-generator/SKILL.md) | `volcengine-service-support` | Generate accurate, runnable Volcengine SDK examples in supported languages. |
+| [`volcengine-context-search`](./skills/specialized/context-search/volcengine-context-search/SKILL.md) | `volcengine-context-search` | Query and manage Context Search scenes, agent conversations, multimodal data, models, and inference services with a dependency-free OpenAPI script. |
 <!-- END GENERATED: skill-catalog -->
 
 ## Default Installation

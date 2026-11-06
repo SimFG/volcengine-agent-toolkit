@@ -37,6 +37,7 @@ Agent 执行 `ve` 时必须注入 `VE_CALLER_TYPE=ai_agent`、`VE_CALLER_NAME=<a
 | `volcengine-security` | 安全 | `volcengine-compliance`、`volcengine-cloud-trail` | 否 |
 | `volcengine-identity-access-control` | 身份与访问控制 | `volcengine-landing-zone` | 否 |
 | `volcengine-service-support` | 服务支持 | `volcengine-sale`、`volcengine-prepare`、`volcengine-deploy`、`volcengine-iac`、`volcengine-api`、`volcengine-sdk-generator` | 否 |
+| `volcengine-context-search` | Context Search | `volcengine-context-search` | 否 |
 <!-- END GENERATED: plugin-catalog -->
 
 核心插件的 marketplace 策略为 `INSTALLED_BY_DEFAULT`，其他插件均为 `AVAILABLE`。
@@ -69,6 +70,7 @@ Agent 执行 `ve` 时必须注入 `VE_CALLER_TYPE=ai_agent`、`VE_CALLER_NAME=<a
 | [`volcengine-iac`](./skills/specialized/service-support/volcengine-iac/SKILL.md) | `volcengine-service-support` | 使用 Terraform 和基础设施即代码管理火山引擎资源。 |
 | [`volcengine-api`](./skills/specialized/service-support/volcengine-api/SKILL.md) | `volcengine-service-support` | 查询火山引擎 API 规格、参数、错误码和返回结构。 |
 | [`volcengine-sdk-generator`](./skills/specialized/service-support/volcengine-sdk-generator/SKILL.md) | `volcengine-service-support` | 生成准确、可运行的多语言火山引擎 SDK 示例。 |
+| [`volcengine-context-search`](./skills/specialized/context-search/volcengine-context-search/SKILL.md) | `volcengine-context-search` | 通过零依赖 OpenAPI 脚本查询和管理 Context Search 场景、Agent 对话、多模态数据、模型与推理服务。 |
 <!-- END GENERATED: skill-catalog -->
 
 ## 默认安装

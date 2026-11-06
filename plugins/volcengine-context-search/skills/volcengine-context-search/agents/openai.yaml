@@ -1,0 +1,4 @@
+interface:
+  display_name: "Volcengine Context Search"
+  short_description: "Query and manage Context Search scenes on Volcengine"
+  default_prompt: "Use $volcengine-context-search to list my Context Search scenes."

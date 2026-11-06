@@ -87,6 +87,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Cloud"
+    },
+    {
+      "name": "volcengine-context-search",
+      "source": {
+        "source": "local",
+        "path": "./plugins/volcengine-context-search"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Cloud"
     }
   ]
 }
