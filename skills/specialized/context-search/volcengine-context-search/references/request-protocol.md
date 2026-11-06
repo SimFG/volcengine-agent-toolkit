@@ -18,13 +18,14 @@
 
 ## 凭据
 
-依次检查三组环境变量：
+依次检查四组环境变量：
 
-1. `CTXSEARCH_ACCESS_KEY_ID` 与 `CTXSEARCH_SECRET_ACCESS_KEY`。
-2. `CTXSEARCH_TEST_AK` 与 `CTXSEARCH_TEST_SK`（兼容名称，同样访问正式服务）。
-3. `VOLC_ACCESSKEY` 与 `VOLC_SECRETKEY`。
+1. `VOLCENGINE_ACCESS_KEY` 与 `VOLCENGINE_SECRET_KEY`（最高优先级，推荐）。
+2. `CTXSEARCH_ACCESS_KEY_ID` 与 `CTXSEARCH_SECRET_ACCESS_KEY`。
+3. `CTXSEARCH_TEST_AK` 与 `CTXSEARCH_TEST_SK`（兼容名称，同样访问正式服务）。
+4. `VOLC_ACCESSKEY` 与 `VOLC_SECRETKEY`。
 
-跳过完全未配置的一组；半组配置时报错，不继续查下一组。临时凭据为 `CTXSEARCH_SESSION_TOKEN` 或 `VOLC_SESSION_TOKEN`。仅继承用户已经配置的进程环境，不读取本地登录文件、不自动 source 未知凭据文件。
+跳过完全未配置或去除首尾空白后均为空的一组；半组配置时报错，不继续查下一组。临时凭据依次读取 `VOLCENGINE_SESSION_TOKEN`、`CTXSEARCH_SESSION_TOKEN`、`VOLC_SESSION_TOKEN`，取第一个去除首尾空白后非空的值。Token 优先级独立于 AK/SK 来源，用户需保证 Token 与实际使用的 AK/SK 匹配；长期凭据不需要 Token。仅继承用户已经配置的进程环境，不读取本地登录文件、不自动 source 未知凭据文件。
 
 ## 签名与网络
 

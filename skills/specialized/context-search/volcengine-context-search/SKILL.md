@@ -14,8 +14,8 @@ description: 使用火山引擎 Context Search 正式 OpenAPI 管理和查询 Ag
 - Host 固定 `open.volcengineapi.com`，Service 固定 `ctxsearch`，Version 固定 `2025-09-01`。
 - 不提供环境选择参数、服务覆盖、Host 覆盖或灰度路由头；不要向用户询问服务环境。
 - Region 默认 `cn-beijing`，用户明确需要其他地域时传 `--region`。
-- AK/SK 只读取进程环境，顺序为 `CTXSEARCH_ACCESS_KEY_ID` / `CTXSEARCH_SECRET_ACCESS_KEY`、`CTXSEARCH_TEST_AK` / `CTXSEARCH_TEST_SK`、`VOLC_ACCESSKEY` / `VOLC_SECRETKEY`。第二组只是兼容凭据名称，不改变服务路由。遇到半组凭据立即报错，不混用不同来源。
-- 临时凭据读取 `CTXSEARCH_SESSION_TOKEN`，其次 `VOLC_SESSION_TOKEN`。不要让用户在聊天中发送凭据，不打印环境变量值。
+- AK/SK 只读取进程环境，顺序为 `VOLCENGINE_ACCESS_KEY` / `VOLCENGINE_SECRET_KEY`、`CTXSEARCH_ACCESS_KEY_ID` / `CTXSEARCH_SECRET_ACCESS_KEY`、`CTXSEARCH_TEST_AK` / `CTXSEARCH_TEST_SK`、`VOLC_ACCESSKEY` / `VOLC_SECRETKEY`。`CTXSEARCH_TEST_*` 只是兼容凭据名称，不改变服务路由。遇到半组凭据立即报错，不混用不同来源。
+- 临时凭据依次读取 `VOLCENGINE_SESSION_TOKEN`、`CTXSEARCH_SESSION_TOKEN`、`VOLC_SESSION_TOKEN`，使用第一个去除首尾空白后非空的值；该优先级独立于 AK/SK 来源，确保配置的 Token 与使用的 AK/SK 属于同一组临时凭据。不要让用户在聊天中发送凭据，不打印环境变量值。
 
 以下示例从本 Skill 根目录执行；也可以将 `scripts/ctxsearch.mjs` 替换为安装后的绝对路径。
 

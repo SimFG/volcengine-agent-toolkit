@@ -47,6 +47,93 @@ console.log(JSON.stringify({chosen, rejected}));
         self.assertEqual(result['chosen']['sessionToken'], 'temporary')
         self.assertEqual(result['chosen']['accessKeyId'], 'example-ak')
 
+    def test_volcengine_credentials_have_highest_priority(self):
+        result = self.js('''
+console.log(JSON.stringify(cs.credentialsFrom({
+ VOLCENGINE_ACCESS_KEY:' example-new-ak ', VOLCENGINE_SECRET_KEY:' example-new-sk ',
+ VOLCENGINE_SESSION_TOKEN:' example-new-token ',
+ CTXSEARCH_ACCESS_KEY_ID:'example-old-ak', CTXSEARCH_SECRET_ACCESS_KEY:'example-old-sk',
+ CTXSEARCH_TEST_AK:'example-test-ak', CTXSEARCH_TEST_SK:'example-test-sk',
+ VOLC_ACCESSKEY:'example-volc-ak', VOLC_SECRETKEY:'example-volc-sk',
+ CTXSEARCH_SESSION_TOKEN:'example-old-token', VOLC_SESSION_TOKEN:'example-volc-token'
+})));
+''')
+        self.assertEqual(result, {
+            'accessKeyId': 'example-new-ak', 'secretAccessKey': 'example-new-sk',
+            'sessionToken': 'example-new-token',
+        })
+
+    def test_empty_volcengine_pair_preserves_legacy_pair_priority(self):
+        result = self.js('''
+const pairs = [
+ ['CTXSEARCH_ACCESS_KEY_ID', 'CTXSEARCH_SECRET_ACCESS_KEY'],
+ ['CTXSEARCH_TEST_AK', 'CTXSEARCH_TEST_SK'],
+ ['VOLC_ACCESSKEY', 'VOLC_SECRETKEY']
+];
+const results = pairs.map((_, start) => {
+ const variables = {VOLCENGINE_ACCESS_KEY:' ', VOLCENGINE_SECRET_KEY:'', VOLCENGINE_SESSION_TOKEN:' '};
+ for (let i = start; i < pairs.length; i++) {
+  variables[pairs[i][0]] = `example-ak-${i}`;
+  variables[pairs[i][1]] = `example-sk-${i}`;
+ }
+ return cs.credentialsFrom(variables);
+});
+console.log(JSON.stringify(results));
+''')
+        for index, row in enumerate(result):
+            self.assertEqual(row['accessKeyId'], f'example-ak-{index}')
+            self.assertEqual(row['secretAccessKey'], f'example-sk-{index}')
+            self.assertNotIn('sessionToken', row)
+
+    def test_partial_volcengine_pair_is_rejected_before_fallback(self):
+        result = self.js('''
+console.log(JSON.stringify([
+ {VOLCENGINE_ACCESS_KEY:'example-partial-ak'},
+ {VOLCENGINE_SECRET_KEY:'example-partial-sk'}
+].map(partial => {
+ try { cs.credentialsFrom({...partial, CTXSEARCH_ACCESS_KEY_ID:'example-old-ak', CTXSEARCH_SECRET_ACCESS_KEY:'example-old-sk'}); return false; }
+ catch (error) { return error.message.includes('VOLCENGINE_ACCESS_KEY') && error.message.includes('VOLCENGINE_SECRET_KEY'); }
+})));
+''')
+        self.assertTrue(all(result))
+
+    def test_session_token_priority_and_whitespace_fallback(self):
+        result = self.js('''
+const credentials = {VOLCENGINE_ACCESS_KEY:'example-new-ak',VOLCENGINE_SECRET_KEY:'example-new-sk'};
+const cases = [
+ {VOLCENGINE_SESSION_TOKEN:' new-token ',CTXSEARCH_SESSION_TOKEN:'ctx-token',VOLC_SESSION_TOKEN:'volc-token'},
+ {VOLCENGINE_SESSION_TOKEN:' ',CTXSEARCH_SESSION_TOKEN:' ctx-token ',VOLC_SESSION_TOKEN:'volc-token'},
+ {VOLCENGINE_SESSION_TOKEN:' ',CTXSEARCH_SESSION_TOKEN:' ',VOLC_SESSION_TOKEN:' volc-token '},
+ {VOLCENGINE_SESSION_TOKEN:' ',CTXSEARCH_SESSION_TOKEN:' ',VOLC_SESSION_TOKEN:' '}
+];
+console.log(JSON.stringify(cases.map(tokens => cs.credentialsFrom({...credentials,...tokens}).sessionToken ?? null)));
+''')
+        self.assertEqual(result, ['new-token', 'ctx-token', 'volc-token', None])
+
+    def test_new_token_is_used_in_security_token_header(self):
+        result = self.js('''
+const credentials = cs.credentialsFrom({VOLCENGINE_ACCESS_KEY:'example-new-ak',VOLCENGINE_SECRET_KEY:'example-new-sk',VOLCENGINE_SESSION_TOKEN:'example-new-token'});
+const signed = cs.buildSignedRequest({action:'ListScene', credentials, date:new Date('2026-01-02T03:04:05Z')});
+console.log(JSON.stringify({token:signed.headers['X-Security-Token'], authorization:signed.headers.Authorization}));
+''')
+        self.assertEqual(result['token'], 'example-new-token')
+        self.assertIn('Credential=example-new-ak/', result['authorization'])
+        self.assertIn('SignedHeaders=x-date;x-security-token', result['authorization'])
+
+    def test_new_credentials_are_removed_from_local_error_messages(self):
+        canary = 'SYNTHETIC_ERROR_CANARY_NOT_A_REAL_SECRET'
+        for name in ('VOLCENGINE_ACCESS_KEY', 'VOLCENGINE_SECRET_KEY', 'VOLCENGINE_SESSION_TOKEN'):
+            with self.subTest(name=name):
+                clean = {k: v for k, v in os.environ.items()
+                         if not k.startswith(('VOLCENGINE_', 'CTXSEARCH_', 'VOLC_'))}
+                clean[name] = canary
+                result = subprocess.run([NODE, str(SCRIPT), '--action', 'ListScene',
+                                         '--unknown-' + canary], env=clean,
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 2)
+                self.assertNotIn(canary, result.stderr)
+                self.assertIn('[REDACTED]', result.stderr)
+
     def test_v4_post_signature_matches_independent_implementation(self):
         result = self.js('''
 console.log(JSON.stringify(cs.buildSignedRequest({
@@ -122,7 +209,7 @@ console.log(JSON.stringify([
 
     def test_missing_credentials_does_not_make_network_request(self):
         clean = {k: v for k, v in os.environ.items()
-                 if not k.startswith(('CTXSEARCH_', 'VOLC_'))}
+                 if not k.startswith(('VOLCENGINE_', 'CTXSEARCH_', 'VOLC_'))}
         result = subprocess.run([NODE, str(SCRIPT), '--action', 'ListScene'],
                                 env=clean, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 2)

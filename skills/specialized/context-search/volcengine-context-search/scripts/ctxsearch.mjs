@@ -10,9 +10,13 @@ export const ENDPOINT = Object.freeze({
   host: 'open.volcengineapi.com', service: 'ctxsearch', version: '2025-09-01',
 });
 const PAIRS = [
+  ['VOLCENGINE_ACCESS_KEY', 'VOLCENGINE_SECRET_KEY'],
   ['CTXSEARCH_ACCESS_KEY_ID', 'CTXSEARCH_SECRET_ACCESS_KEY'],
   ['CTXSEARCH_TEST_AK', 'CTXSEARCH_TEST_SK'],
   ['VOLC_ACCESSKEY', 'VOLC_SECRETKEY'],
+];
+const SESSION_TOKEN_NAMES = [
+  'VOLCENGINE_SESSION_TOKEN', 'CTXSEARCH_SESSION_TOKEN', 'VOLC_SESSION_TOKEN',
 ];
 const digest = value => createHash('sha256').update(value).digest('hex');
 const mac = (key, value) => createHmac('sha256', key).update(value).digest();
@@ -27,11 +31,10 @@ export function credentialsFrom(variables = process.env) {
     const secretAccessKey = variables[skName]?.trim();
     if (!accessKeyId && !secretAccessKey) continue;
     if (!accessKeyId || !secretAccessKey) throw new Error(`凭据不完整：${akName} 与 ${skName} 必须同时配置。`);
-    const sessionToken = variables.CTXSEARCH_SESSION_TOKEN?.trim()
-      || variables.VOLC_SESSION_TOKEN?.trim();
+    const sessionToken = SESSION_TOKEN_NAMES.map(name => variables[name]?.trim()).find(Boolean);
     return { accessKeyId, secretAccessKey, sessionToken };
   }
-  throw new Error('缺少凭据：请配置 CTXSEARCH_ACCESS_KEY_ID / CTXSEARCH_SECRET_ACCESS_KEY，或 VOLC_ACCESSKEY / VOLC_SECRETKEY。');
+  throw new Error('缺少凭据：请配置 VOLCENGINE_ACCESS_KEY / VOLCENGINE_SECRET_KEY（或 CTXSEARCH_ACCESS_KEY_ID / CTXSEARCH_SECRET_ACCESS_KEY、CTXSEARCH_TEST_AK / CTXSEARCH_TEST_SK、VOLC_ACCESSKEY / VOLC_SECRETKEY）。');
 }
 
 function objectJson(text, label) {
@@ -103,7 +106,7 @@ export function redact(value) {
 }
 function safeMessage(error, variables = process.env) {
   let message = error instanceof Error ? error.message : String(error);
-  for (const name of [...PAIRS.flat(), 'CTXSEARCH_SESSION_TOKEN', 'VOLC_SESSION_TOKEN']) {
+  for (const name of [...PAIRS.flat(), ...SESSION_TOKEN_NAMES]) {
     if (variables[name]) message = message.split(variables[name]).join('[REDACTED]');
   }
   return message.replace(/https?:\/\/[^\s]+/g, '[URL REDACTED]');
@@ -229,9 +232,11 @@ upload:
   --timeout <ms>         默认 60000
   --compact             紧凑 JSON
 固定服务：ctxsearch；Host：open.volcengineapi.com；Version：2025-09-01。
-凭据只从进程环境读取：CTXSEARCH_ACCESS_KEY_ID/CTXSEARCH_SECRET_ACCESS_KEY，
+凭据只从进程环境读取，按优先级依次检查：
+VOLCENGINE_ACCESS_KEY/VOLCENGINE_SECRET_KEY（推荐），
+CTXSEARCH_ACCESS_KEY_ID/CTXSEARCH_SECRET_ACCESS_KEY，
 CTXSEARCH_TEST_AK/CTXSEARCH_TEST_SK，VOLC_ACCESSKEY/VOLC_SECRETKEY。
-临时凭据：CTXSEARCH_SESSION_TOKEN 或 VOLC_SESSION_TOKEN。
+临时凭据按优先级读取：VOLCENGINE_SESSION_TOKEN、CTXSEARCH_SESSION_TOKEN、VOLC_SESSION_TOKEN。
 退出码：0 成功；1 HTTP/API 失败；2 本地参数/凭据/网络错误。
 `;
 export async function main(args = process.argv.slice(2)) {
