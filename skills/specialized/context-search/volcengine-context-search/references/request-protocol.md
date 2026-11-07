@@ -2,7 +2,7 @@
 
 ## 调用与输入
 
-唯一入口为 `node <安装目录>/scripts/ctxsearch.mjs`，默认子命令 `call`。所有路径相对当前用户工作目录解析，脚本路径必须以实际安装目录为准。
+唯一入口为 `python3 <安装目录>/scripts/ctxsearch.py`，要求 Python >= 3.9，仅使用标准库，无第三方依赖，默认子命令 `call`。所有路径相对当前用户工作目录解析，脚本路径必须以实际安装目录为准。
 
 `call` 接受：
 
@@ -36,7 +36,7 @@
 - `X-Date` 为 UTC 时间，临时凭据使用 `X-Security-Token`。JSON body 以 UTF-8 序列化，带 `X-Content-Sha256`。
 - `X-*` 签名头按小写名称排序；`Content-Type` 与 `Content-Length` 不参与签名。
 - 派生密钥：SK → 日期 → Region → `ctxsearch` → `request`，每轮传递原始 HMAC 字节。
-- URL 以 `URLSearchParams` 序列化；仅发 HTTPS，不跟随重定向。整体超时包含建立连接和读取响应，响应最多 32 MiB。
+- URL 以标准库 `urllib.parse.urlencode` 序列化；传输使用 `http.client.HTTPSConnection`，验证 TLS 证书，不跟随重定向。请求设置截止时间并在阶段/读取循环中复核，响应最多 32 MiB。
 - 不实现脚本内代理，不传代理开关；网络受限时检查用户网络配置。
 
 ## 上传
@@ -44,7 +44,7 @@
 先通过对应 Action 获取上传信息，再用返回的地址和 Headers。不要重用过期预签名地址。
 
 ```bash
-node scripts/ctxsearch.mjs upload --url-file ./upload-url.txt \
+python3 scripts/ctxsearch.py upload --url-file ./upload-url.txt \
   --file ./asset.bin --headers-file ./upload-headers.json
 ```
 
@@ -55,7 +55,7 @@ node scripts/ctxsearch.mjs upload --url-file ./upload-url.txt \
 
 ## 输出与失败
 
-退出码：0 = HTTP 2xx 且无 API Error；1 = 非 2xx 或 `ResponseMetadata.Error`；2 = 参数、凭据、文件或网络错误。JSON 响应成功写 stdout，失败写 stderr；默认脱敏。非 JSON 2xx 可为 SSE/纯文本，保留文本结构，不因此判失败；它不是场景列表的有效验收响应。非 JSON 数据可能含业务隐私，只显示完成任务需要的摘要。
+退出码：0 = HTTP 2xx 且无 API Error；1 = 非 2xx 或 `ResponseMetadata.Error`；2 = 参数、凭据、文件或网络错误。JSON 响应成功写 stdout，失败写 stderr；默认递归脱敏，同时清理已配置凭据值、自由文本中的带标签敏感值与 SSE JSON 数据。非 JSON 2xx 可为 SSE/纯文本，保留文本结构，不因此判失败；它不是场景列表的有效验收响应。无法根据字段识别的业务隐私仍需由 Agent 最小化展示，不宣称任意文本都已脱敏。
 
 `--output-file` 是未经脱敏的原始响应，只供下一步读取。用户只要列表时不需要保存原始响应。
 

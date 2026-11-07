@@ -1,15 +1,15 @@
 ---
 name: volcengine-context-search
-description: 使用火山引擎 Context Search 正式 OpenAPI 管理和查询 Agent 搜索、多模态搜索、个性化搜推场景以及共享模型与推理服务。用于列出/创建/初始化场景、数据入库与切片、检索与对话测试、Skill/MCP/数据源/变量管理、实例启停和网络日志排障。内置 Node.js 请求脚本，无第三方依赖，不需要 ctxsearch CLI。
+description: 使用火山引擎 Context Search 正式 OpenAPI 管理和查询 Agent 搜索、多模态搜索、个性化搜推场景以及共享模型与推理服务。用于列出/创建/初始化场景、数据入库与切片、检索与对话测试、Skill/MCP/数据源/变量管理、实例启停和网络日志排障。内置 Python 标准库请求脚本，无第三方依赖，不需要 ctxsearch CLI。
 ---
 
 # Volcengine Context Search
 
 ## 执行入口
 
-仅使用本 Skill 自带的 [scripts/ctxsearch.mjs](scripts/ctxsearch.mjs) 调用正式服务。不要调用外部 `ctxsearch` 命令，不依赖其他仓库。安装后先解析本 Skill 的实际绝对路径，所有命令中的脚本路径均以该安装位置为准；业务文件路径以用户工作目录为准。
+仅使用本 Skill 自带的 [scripts/ctxsearch.py](scripts/ctxsearch.py) 调用正式服务。不要调用外部 `ctxsearch` 命令，不依赖其他仓库。安装后先解析本 Skill 的实际绝对路径，所有命令中的脚本路径均以该安装位置为准；业务文件路径以用户工作目录为准。
 
-要求 Node.js >= 18。使用 `.mjs`，无需 TypeScript 构建或类型剥离。
+要求 Python >= 3.9，仅使用标准库，无需其他运行时、构建或安装第三方包。
 
 - Host 固定 `open.volcengineapi.com`，Service 固定 `ctxsearch`，Version 固定 `2025-09-01`。
 - 不提供环境选择参数、服务覆盖、Host 覆盖或灰度路由头；不要向用户询问服务环境。
@@ -17,10 +17,10 @@ description: 使用火山引擎 Context Search 正式 OpenAPI 管理和查询 Ag
 - AK/SK 只读取进程环境，顺序为 `VOLCENGINE_ACCESS_KEY` / `VOLCENGINE_SECRET_KEY`、`CTXSEARCH_ACCESS_KEY_ID` / `CTXSEARCH_SECRET_ACCESS_KEY`、`CTXSEARCH_TEST_AK` / `CTXSEARCH_TEST_SK`、`VOLC_ACCESSKEY` / `VOLC_SECRETKEY`。`CTXSEARCH_TEST_*` 只是兼容凭据名称，不改变服务路由。遇到半组凭据立即报错，不混用不同来源。
 - 临时凭据依次读取 `VOLCENGINE_SESSION_TOKEN`、`CTXSEARCH_SESSION_TOKEN`、`VOLC_SESSION_TOKEN`，使用第一个去除首尾空白后非空的值；该优先级独立于 AK/SK 来源，确保配置的 Token 与使用的 AK/SK 属于同一组临时凭据。不要让用户在聊天中发送凭据，不打印环境变量值。
 
-以下示例从本 Skill 根目录执行；也可以将 `scripts/ctxsearch.mjs` 替换为安装后的绝对路径。
+以下示例从本 Skill 根目录执行；也可以将 `scripts/ctxsearch.py` 替换为安装后的绝对路径。
 
 ```bash
-node scripts/ctxsearch.mjs --action ListScene --method GET \
+python3 scripts/ctxsearch.py --action ListScene --method GET \
   --param Project=default --param SceneType=MULTIMODAL_SEARCH \
   --param IncludePsr=true --param IncludeAgenticSearch=false \
   --param IncludeMultimodalSearch=true --param PageNumber=1 --param PageSize=10

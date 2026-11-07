@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -17,17 +16,16 @@ from pathlib import Path
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--script', type=Path, required=True,
-                        help='Absolute path to the installed scripts/ctxsearch.mjs')
+                        help='Absolute path to the installed scripts/ctxsearch.py')
     parser.add_argument('--project', default='default')
     parser.add_argument('--scene-type', default='MULTIMODAL_SEARCH',
                         choices=['MULTIMODAL_SEARCH', 'AGENTIC_SEARCH', 'PSR'])
     args = parser.parse_args()
-    node = shutil.which('node')
-    if not node or not args.script.is_file():
-        print(json.dumps({'passed': False, 'error': 'node or installed script not found'}))
+    if not args.script.is_file() or args.script.suffix != '.py':
+        print(json.dumps({'passed': False, 'error': 'installed Python script not found'}))
         return 2
     flags = ['true', 'false', 'true'] if args.scene_type == 'MULTIMODAL_SEARCH' else ['true'] * 3
-    command = [node, str(args.script.resolve()), '--action', 'ListScene', '--method', 'GET',
+    command = [sys.executable, str(args.script.resolve()), '--action', 'ListScene', '--method', 'GET',
                '--param', f'Project={args.project}', '--param', f'SceneType={args.scene_type}',
                '--param', 'PageNumber=1', '--param', 'PageSize=10', '--timeout', '30000']
     for name, flag in zip(('IncludePsr', 'IncludeAgenticSearch', 'IncludeMultimodalSearch'), flags):

@@ -12,7 +12,7 @@
 不要省略 flags 后把返回内容误认为纯粹的目标类型。结果为 `Result.Items[]` 与 `Result.Total`。分页从 1 开始；一页不代表全部，总数大于已查询数时说明范围，只有用户要完整列表才继续分页。
 
 ```bash
-node scripts/ctxsearch.mjs --action ListScene --param Project=default \
+python3 scripts/ctxsearch.py --action ListScene --param Project=default \
   --param SceneType=MULTIMODAL_SEARCH --param PageNumber=1 --param PageSize=10 \
   --param IncludePsr=true --param IncludeAgenticSearch=false --param IncludeMultimodalSearch=true
 ```
