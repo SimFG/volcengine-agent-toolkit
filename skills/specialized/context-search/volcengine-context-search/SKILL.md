@@ -16,6 +16,7 @@ description: 使用火山引擎 Context Search 正式 OpenAPI 管理和查询 Ag
 - Region 默认 `cn-beijing`，用户明确需要其他地域时传 `--region`。
 - AK/SK 只读取进程环境，顺序为 `VOLCENGINE_ACCESS_KEY` / `VOLCENGINE_SECRET_KEY`、`CTXSEARCH_ACCESS_KEY_ID` / `CTXSEARCH_SECRET_ACCESS_KEY`、`CTXSEARCH_TEST_AK` / `CTXSEARCH_TEST_SK`、`VOLC_ACCESSKEY` / `VOLC_SECRETKEY`。`CTXSEARCH_TEST_*` 只是兼容凭据名称，不改变服务路由。遇到半组凭据立即报错，不混用不同来源。
 - 临时凭据依次读取 `VOLCENGINE_SESSION_TOKEN`、`CTXSEARCH_SESSION_TOKEN`、`VOLC_SESSION_TOKEN`，使用第一个去除首尾空白后非空的值；该优先级独立于 AK/SK 来源，确保配置的 Token 与使用的 AK/SK 属于同一组临时凭据。不要让用户在聊天中发送凭据，不打印环境变量值。
+- 凭据排障时先实际运行脚本复现，只检查变量名、不打印值；不要根据用户转述推断退出码，也不要把一个前缀的值导出成另一个前缀，或拼接不同来源的 AK/SK。
 
 以下示例从本 Skill 根目录执行；也可以将 `scripts/ctxsearch.py` 替换为安装后的绝对路径。
 
@@ -43,20 +44,39 @@ python3 scripts/ctxsearch.py --action ListScene --method GET \
 ## 操作流程
 
 1. **查询**：只执行满足当前需求的最少只读请求。用户只要“查询场景列表”时，可先查询 `Project=default` 的一页多模态场景并说明范围；要列全类型时按用户指定的类型分别查询，不把一页说成完整列表。其他 Project/类型由用户说明或继续选定。
-2. **确定目标**：操作具体场景时用列表确认名称、类型、Project 与 ID；多个同名或类型不明时让用户选择。不要猜 ID、模型、规格或网络。
-3. **变更**：先读当前对象，保留已有嵌套配置，只改用户指定字段。确认名称、Project、模型来源、规格、网络、文件范围、覆盖行为以及费用/中断影响，再执行写请求。破坏性动作先 `--plan-only`，再用真实目标 Id `--confirm`，见下节。
-4. **核验**：创建成功响应不代表服务已经可用；按目标接口读取状态。检索/对话仅对 `RUNNING` 场景执行。轮询要限制总时长（默认最长 10 分钟）、间隔和次数，超时报告实际状态。
-5. **返回**：拿到需求结果立即结束，不顺手绑定资源、发布、开通内置模型或扩大查询范围。
+2. **确定目标**：操作具体场景时用列表确认名称、类型、Project 与 ID；多个同名或类型不明时让用户选择。不要猜 ID、模型、规格或网络。用户未给 Project 时先用 `default`，同一会话已出现 Project 则沿用；查不到时说明“在 <Project>/<Region> 的本次查询范围内未找到”，再请用户确认 Project/Region，不要用其他场景、demo 场景或历史快照顶替目标。
+3. **变更**：先读当前对象，保留已有嵌套配置，只改用户指定字段。只提交接口契约中已有且当前对象可读到的字段；字段不在契约或当前配置中时停止并说明“接口不支持/字段不可见”，不要猜字段、不要用全量 Update 重提交当前配置来试探，也不要把场景换成其他类型绕过。确认名称、Project、模型来源、规格、网络、文件范围、覆盖行为以及费用/中断影响，再执行写请求。破坏性动作先 `--plan-only`，再用真实目标 Id `--confirm`，见下节。
+4. **核验**：创建成功响应不代表服务已经可用；按目标接口读取状态。检索/对话仅对 `RUNNING` 场景执行。轮询要限制总时长（默认最长 10 分钟）、间隔和次数，超时报告实际状态。为任务设置调用预算：命名对象优先按名称/Id 直接查详情，不做全项目、全地域、全类型枚举；多场景任务先列一次目标集合，再逐项读详情；接近预算仍无结论时，返回已核实事实、未核实项和下一步，不无限重试。
+5. **返回**：拿到需求结果立即结束，不顺手绑定资源、发布、开通内置模型或扩大查询范围。只写本次调用实际返回的内容；推断、经验判断和未查询项必须显式标注“推测/未核实”，不能写成确定结论。
 
 删除、解绑、发布、启停、规格与网络变更必须先取得对具体对象及影响的明确确认。写请求超时或断连时先查现状，不自动重试。PSR 写操作未开放；多模态版本发布没有可依赖的成功契约，不把 `CreateSceneVersion` 作为默认步骤。
 
 ## 破坏性操作与证据
 
 - 破坏性动作（`Delete*`、`Stop*`、`Restart*`）分两步：先 `--plan-only` 核对风险、目标 Id 与影响，再把目标真实 Id（变量/Skill/Tool 删除可用唯一名称）作为 `--confirm` 传入。缺少令牌、请求中没有目标 Id、或 `--confirm` 与请求目标不一致时，脚本以退出码 2 拒绝，不发送请求。
+- 用户说“删了吧”“先停掉”只是任务意图，不是对具体对象和影响的确认。先输出 `--plan-only` 的目标、影响与恢复方式，在同一轮等待用户明确确认后，再用 `--confirm` 执行；不要自行把用户原话当成确认令牌。
 - `--plan-only` 不签名、不联网、不要求凭据，输出 `risk`、`targetIds`、`requiresConfirmation`、`impact` 与 `executeHint`。它只证明“准备做什么”，不证明对象存在或操作可行；执行前仍需只读核对。
 - 每次 call 默认在响应中附加 `_evidence`：`action`、`method`、`region`、`project`、`targetIds`、`httpStatus`、`requestId`、`errorCode`、`verdict`（`found`/`empty`/`not_found`/`forbidden`/`error`）、`checkedAt`、`source=cloud`。`--raw` 可关闭该字段，仅在需要原始响应时使用。
-- 结论必须引用本次 `_evidence` 的 action、目标 Id 与 verdict。`empty` 只表示查询成功但结果为空，不等于对象不存在；`forbidden` 不等于资源不存在；不得用本地模拟、历史快照或其他项目的结果替代 cloud 调用。
+- 结论必须引用本次 `_evidence` 的 action、目标 Id 与 verdict。`empty` 只表示查询成功但结果为空，不等于对象不存在；`forbidden` 不等于资源不存在，也不能当成空列表参与“漂移/缺失”比较；不得用本地模拟、历史快照或其他项目的结果替代 cloud 调用。
 - `--confirm` 只校验“请求中的目标 Id 与确认值一致”，不校验目标语义是否正确；名称、类型、Project 仍须先用只读接口核对。
+
+## 证据与结论边界
+
+- 说“未找到/不存在”时必须带范围：Project、Region、SceneType、`Name` 过滤、分页。`empty` 只证明“本次查询范围内没有匹配”，不能扩大成“全局不存在”。
+- `forbidden`、404、`NotFound.*`、`InvalidActionOrVersion` 先区分权限、接口/参数不适配和对象确实缺失。Agentic 场景没有 `GetSceneInstance`，副本数读 `GetAgenticScene.Config.Replicas`；`NotFound.Scene` 往往是用错实例接口，不是场景不存在。查对象时保持已知 SceneType，不要用其他 SceneType 的详情接口探测同一 Id。
+- 列全类型时必须按类型分别查询；全 true 的一页或一次 `Name` 过滤不能当成“覆盖所有类型/所有项目”。
+- 网络、日志、用量查询必须带目标（如 `DescribeAINetwork` 的 `JobId`、`InstanceType`、`Type`）。没有目标或返回为空时写“未核实”，不能写成“未创建/未配置”。
+- 只引用响应中实际出现的字段。列表或终端输出被截断时，用 `--output-file`、分页或 `Name` 过滤重取；不要从截断输出推断 `CreateTime`、`Total` 或完整清单。
+- 配置存在不等于功能生效。没有日志、对照实验或接口返回时，不要断言“Rerank 未生效”“OCR 效果差”“模型选错”；写成待验证假设，并给出验证方法。
+- 不编造单价、金额、测试结果或“已通过”状态。费用只能由 `DescribeArkEndpointPrice`、`GetArkEndpointUsage` 或账单数据支撑；取不到时写“未核实”，并指向 `volcengine-billing-and-cost-management`。
+- 用其他场景或 demo 做示例时，必须明确标注“示例，不是目标对象”，不能把示例值写进目标清单。
+
+## 回答前自检
+
+- 每个“不存在/未创建/未配置/未生效/已完成”的结论，是否都有本次 `_evidence` 或实际执行结果？
+- 是否写清了 Project、Region、SceneType、过滤条件和分页范围？
+- 是否把推断、示例值或未查询项写成了确定事实？
+- 破坏性动作是否已 `--plan-only` 并取得用户明确确认？
 
 ## 安全与输出
 

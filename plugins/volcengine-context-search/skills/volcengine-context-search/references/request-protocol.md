@@ -27,6 +27,8 @@
 
 跳过完全未配置或去除首尾空白后均为空的一组；半组配置时报错，不继续查下一组。临时凭据依次读取 `VOLCENGINE_SESSION_TOKEN`、`CTXSEARCH_SESSION_TOKEN`、`VOLC_SESSION_TOKEN`，取第一个去除首尾空白后非空的值。Token 优先级独立于 AK/SK 来源，用户需保证 Token 与实际使用的 AK/SK 匹配；长期凭据不需要 Token。仅继承用户已经配置的进程环境，不读取本地登录文件、不自动 source 未知凭据文件。
 
+排障时先实际运行脚本复现，并只检查变量是否存在（如 `env | grep` 变量名），不要根据用户转述推断退出码或报错文本。脚本按上述顺序取第一组完整凭据；不要把一个前缀的值导出成另一个前缀来绕过半组错误，也不要把不同来源的 AK/SK 拼成一组。用户报错文本可能来自另一个脚本或旧版本，先确认实际运行的脚本路径和版本。
+
 ## 签名与网络
 
 使用 Volcengine V4 HMAC-SHA256：
@@ -57,13 +59,13 @@ python3 scripts/ctxsearch.py upload --url-file ./upload-url.txt \
 
 退出码：0 = HTTP 2xx 且无 API Error；1 = 非 2xx 或 `ResponseMetadata.Error`；2 = 参数、凭据、文件或网络错误。JSON 响应成功写 stdout，失败写 stderr；默认递归脱敏，同时清理已配置凭据值、自由文本中的带标签敏感值与 SSE JSON 数据。非 JSON 2xx 可为 SSE/纯文本，保留文本结构，不因此判失败；它不是场景列表的有效验收响应。无法根据字段识别的业务隐私仍需由 Agent 最小化展示，不宣称任意文本都已脱敏。
 
-`--output-file` 是未经脱敏的原始响应，只供下一步读取。用户只要列表时不需要保存原始响应。
+`--output-file` 是未经脱敏的原始响应，只供下一步读取。用户只要列表时不需要保存原始响应。终端输出可能被截断；不要用截断后的 JSON 推断全量列表、总数或字段。需要完整响应时用 `--output-file` 保存后读取，或分页/按名称过滤。
 
 常见错误：
 
 - `SignatureDoesNotMatch`：核对同源 AK/SK、SessionToken 和时间，确认地域；不要切换服务。
 - 权限错误：确认账号和目标 Project/Scene 的权限。
-- 资源不存在：核对 Id、Project、SceneType 以及对应详情接口。
+- 资源不存在：核对 Id、Project、SceneType 以及对应详情接口。`NotFound.*`/404 先区分权限、接口/参数不适配和对象确实缺失，不要直接写成“不存在”。
 - `InvalidActionOrVersion`：本服务不支持该契约，不猜其他 Action。
 - 超时/断连：写操作先复核现状；只读操作必要时有限重试，不无限等待。
 

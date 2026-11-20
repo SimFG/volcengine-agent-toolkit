@@ -49,8 +49,8 @@ FileInfoList 是 JSON **字符串**数组，元素字段为 file_name 与 file_p
 }
 ```
 
-检索仅对 RUNNING 场景执行。使用普通 JSON 响应接口，不替换成旧 RAG 的 SSE 接口。Description、过滤条件和返回量应对应用户需求。
+检索仅对 RUNNING 场景执行。使用普通 JSON 响应接口，不替换成旧 RAG 的 SSE 接口。Description、过滤条件和返回量应对应用户需求。`TestSceneInstance` 的 TopK/分数只能说明本次召回结果；没有日志、对照实验或 rerank 运行证据时，不要断言“Rerank 未生效”“Embedding 选错”。把推断写成假设并给出验证步骤。`ListSceneDataChunk` 需要 `DataId` 才能稳定取某文件切片；不要用 `ListSceneData` 的截断输出推断切片总数。
 
 ## 变更边界
 
-Embedding、网络、规格、切片和检索参数必须由用户明确或从只读候选中选定。多模态 `CreateSceneVersion` 未提供可依赖的成功契约，不默认调用它发布；使用实例状态和日志核验。写失败先读取任务/数据状态，避免重复注册。
+Embedding、网络、规格、切片和检索参数必须由用户明确或从只读候选中选定。`UpdateScene`/`GetSceneIngestConfig` 的已知契约中没有切片大小或检索提示词字段时，先说明“当前接口不支持/字段不可见”，停止写操作；不要猜 `ChunkSize` 等字段、不要全量重提交当前 Config 触发 UPDATING、不要换成 RAG 场景绕过。`GetSceneIngestConfig` 的 `Prompt` 是入库摘要提示词，不一定是检索提示词；不要把它当成检索提示词修改。多模态 `CreateSceneVersion` 未提供可依赖的成功契约，不默认调用它发布；使用实例状态和日志核验。写失败先读取任务/数据状态，避免重复注册。

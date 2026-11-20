@@ -301,6 +301,17 @@ class ContextSearchTest(unittest.TestCase):
         self.assertEqual(empty["requestId"], "r1")
         self.assertEqual(empty["source"], "cloud")
 
+    def test_network_and_binding_targets_are_evidence(self):
+        self.assertEqual(CS.target_values({"JobId": "scene-1", "InstanceType": "AGENTIC_SCENE"}, None),
+                         ["scene-1"])
+        self.assertEqual(CS.target_values(None, {"DatasourceId": "ds-1", "NetworkId": "net-1"}),
+                         ["ds-1", "net-1"])
+        request = {"meta": {"action": "DescribeAINetwork", "method": "POST", "region": "cn-beijing",
+                            "query": None, "body": {"JobId": "scene-1", "InstanceType": "AGENTIC_SCENE"}}}
+        evidence = CS.evidence_for(request, {"status": 200, "text": '{"ResponseMetadata":{"RequestId":"r5"},"Result":{}}'})
+        self.assertEqual(evidence["targetIds"], ["scene-1"])
+        self.assertEqual(evidence["verdict"], "empty")
+
     def test_main_attaches_evidence_and_raw_disables_it(self):
         request = {"meta": {"action": "ListScene", "method": "GET", "region": "cn-beijing",
                             "query": {"Project": "ark-living"}, "body": None}}

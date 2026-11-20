@@ -196,8 +196,8 @@ DESTRUCTIVE_PREFIXES = ("Delete", "Stop", "Restart", "Release", "Publish", "Disa
 MUTATE_PREFIXES = ("Create", "Update", "Upload", "Add", "Send", "Start", "Resume",
                    "Include", "Bind", "Unbind")
 READ_PREFIXES = ("List", "Get", "Search", "Test", "Describe", "Query", "Check")
-TARGET_KEYS = frozenset({"Id", "SceneId", "DataSourceId", "SkillId", "ToolId", "ChatId",
-                         "VariableId", "BindingId", "ProjectId"})
+TARGET_KEYS = frozenset({"Id", "SceneId", "DataSourceId", "DatasourceId", "SkillId", "ToolId",
+                         "ChatId", "VariableId", "BindingId", "ProjectId", "JobId", "NetworkId"})
 TARGET_NAME_KEYS = frozenset({"Name", "VariableName", "SkillName", "ToolName"})
 NAME_TARGET_ACTIONS = frozenset({"DeleteAgenticVariable", "DeleteAgenticSkill", "DeleteAgenticTool"})
 TARGET_LIST_KEYS = frozenset({"Ids", "SceneIds", "DataSourceIds", "SkillIds"})
