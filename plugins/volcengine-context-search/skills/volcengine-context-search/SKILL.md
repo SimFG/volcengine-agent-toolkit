@@ -44,11 +44,19 @@ python3 scripts/ctxsearch.py --action ListScene --method GET \
 
 1. **查询**：只执行满足当前需求的最少只读请求。用户只要“查询场景列表”时，可先查询 `Project=default` 的一页多模态场景并说明范围；要列全类型时按用户指定的类型分别查询，不把一页说成完整列表。其他 Project/类型由用户说明或继续选定。
 2. **确定目标**：操作具体场景时用列表确认名称、类型、Project 与 ID；多个同名或类型不明时让用户选择。不要猜 ID、模型、规格或网络。
-3. **变更**：先读当前对象，保留已有嵌套配置，只改用户指定字段。确认名称、Project、模型来源、规格、网络、文件范围、覆盖行为以及费用/中断影响，再执行写请求。
+3. **变更**：先读当前对象，保留已有嵌套配置，只改用户指定字段。确认名称、Project、模型来源、规格、网络、文件范围、覆盖行为以及费用/中断影响，再执行写请求。破坏性动作先 `--plan-only`，再用真实目标 Id `--confirm`，见下节。
 4. **核验**：创建成功响应不代表服务已经可用；按目标接口读取状态。检索/对话仅对 `RUNNING` 场景执行。轮询要限制总时长（默认最长 10 分钟）、间隔和次数，超时报告实际状态。
 5. **返回**：拿到需求结果立即结束，不顺手绑定资源、发布、开通内置模型或扩大查询范围。
 
 删除、解绑、发布、启停、规格与网络变更必须先取得对具体对象及影响的明确确认。写请求超时或断连时先查现状，不自动重试。PSR 写操作未开放；多模态版本发布没有可依赖的成功契约，不把 `CreateSceneVersion` 作为默认步骤。
+
+## 破坏性操作与证据
+
+- 破坏性动作（`Delete*`、`Stop*`、`Restart*`）分两步：先 `--plan-only` 核对风险、目标 Id 与影响，再把目标真实 Id（变量/Skill/Tool 删除可用唯一名称）作为 `--confirm` 传入。缺少令牌、请求中没有目标 Id、或 `--confirm` 与请求目标不一致时，脚本以退出码 2 拒绝，不发送请求。
+- `--plan-only` 不签名、不联网、不要求凭据，输出 `risk`、`targetIds`、`requiresConfirmation`、`impact` 与 `executeHint`。它只证明“准备做什么”，不证明对象存在或操作可行；执行前仍需只读核对。
+- 每次 call 默认在响应中附加 `_evidence`：`action`、`method`、`region`、`project`、`targetIds`、`httpStatus`、`requestId`、`errorCode`、`verdict`（`found`/`empty`/`not_found`/`forbidden`/`error`）、`checkedAt`、`source=cloud`。`--raw` 可关闭该字段，仅在需要原始响应时使用。
+- 结论必须引用本次 `_evidence` 的 action、目标 Id 与 verdict。`empty` 只表示查询成功但结果为空，不等于对象不存在；`forbidden` 不等于资源不存在；不得用本地模拟、历史快照或其他项目的结果替代 cloud 调用。
+- `--confirm` 只校验“请求中的目标 Id 与确认值一致”，不校验目标语义是否正确；名称、类型、Project 仍须先用只读接口核对。
 
 ## 安全与输出
 

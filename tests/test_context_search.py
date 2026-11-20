@@ -25,6 +25,7 @@ assert SPEC and SPEC.loader
 CS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CS)
 FAKE_CREDS = {"access_key_id": "example-ak", "secret_access_key": "example-sk", "session_token": None}
+ENV_CREDS = {"VOLCENGINE_ACCESS_KEY": "example-ak", "VOLCENGINE_SECRET_KEY": "example-sk"}
 DATE = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 
 
@@ -249,7 +250,69 @@ class ContextSearchTest(unittest.TestCase):
             with self.assertRaises(TimeoutError):
                 CS.send({"url": "https://example.invalid", "method": "GET", "headers": {}}, 1000)
 
-    def test_main_output_and_exit_code(self):
+    def test_destructive_requires_matching_confirm(self):
+        base = {"--action": "DeleteAgenticScene", "--method": "POST", "--body": '{"Id":"2118608739083771906"}'}
+        with self.assertRaisesRegex(ValueError, "--plan-only"):
+            CS.call_input(dict(base), ENV_CREDS)
+        with self.assertRaisesRegex(ValueError, "不一致"):
+            CS.call_input(dict(base, **{"--confirm": "999"}), ENV_CREDS)
+        request = CS.call_input(dict(base, **{"--confirm": "2118608739083771906"}), ENV_CREDS)
+        self.assertEqual(request["method"], "POST")
+        self.assertIn(b"DeleteAgenticScene", request["url"].encode())
+
+    def test_variable_delete_confirms_name_not_scene(self):
+        base = {"--action": "DeleteAgenticVariable", "--method": "POST",
+                "--body": '{"SceneId":"scene-1","Name":"legacy_token"}'}
+        with self.assertRaisesRegex(ValueError, "不一致"):
+            CS.call_input(dict(base, **{"--confirm": "scene-1"}), ENV_CREDS)
+        self.assertEqual(CS.call_input(dict(base, **{"--confirm": "legacy_token"}), ENV_CREDS)["method"], "POST")
+
+    def test_read_and_mutate_do_not_require_confirm(self):
+        self.assertEqual(CS.action_risk("ListScene"), "read")
+        self.assertEqual(CS.action_risk("CreateAgenticScene"), "mutate")
+        self.assertEqual(CS.action_risk("StopSceneInstance"), "destructive")
+        self.assertEqual(CS.call_input({"--action": "ListScene"}, ENV_CREDS)["method"], "GET")
+
+    def test_plan_only_is_offline_and_reports_targets(self):
+        plan = CS.request_plan({"--action": "DeleteScene", "--method": "POST",
+                                "--body": '{"Id":"2118608739083771906","Project":"ark-living"}'},
+                               lambda: "")
+        self.assertTrue(plan["requiresConfirmation"])
+        self.assertEqual(plan["targetIds"], ["2118608739083771906"])
+        self.assertIn("不可恢复", plan["impact"])
+        result = subprocess.run([sys.executable, str(SCRIPT), "--action", "DeleteScene",
+                                 "--method", "POST", "--body", '{"Id":"211"}', "--plan-only"],
+                                env=clean_env(), capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('"requiresConfirmation": true', result.stdout)
+        self.assertNotIn("缺少凭据", result.stderr)
+
+    def test_evidence_shape_and_verdicts(self):
+        request = {"meta": {"action": "ListScene", "method": "GET", "region": "cn-beijing",
+                            "query": {"Project": "ark-living"}, "body": None}}
+        empty = CS.evidence_for(request, {"status": 200, "text": '{"ResponseMetadata":{"RequestId":"r1"},"Result":{"Items":[]}}'})
+        found = CS.evidence_for(request, {"status": 200, "text": '{"ResponseMetadata":{"RequestId":"r2"},"Result":{"Items":[{"Id":"1"}]}}'})
+        forbidden = CS.evidence_for(request, {"status": 403, "text": '{"ResponseMetadata":{"Error":{"Code":"AccessDenied"},"RequestId":"r3"}}'})
+        stream = CS.evidence_for(request, {"status": 200, "text": 'data: {"delta":"x"}\n\n'})
+        self.assertEqual([empty["verdict"], found["verdict"], forbidden["verdict"], stream["verdict"]],
+                         ["empty", "found", "forbidden", "found"])
+        self.assertEqual(empty["action"], "ListScene")
+        self.assertEqual(empty["project"], "ark-living")
+        self.assertEqual(empty["requestId"], "r1")
+        self.assertEqual(empty["source"], "cloud")
+
+    def test_main_attaches_evidence_and_raw_disables_it(self):
+        request = {"meta": {"action": "ListScene", "method": "GET", "region": "cn-beijing",
+                            "query": {"Project": "ark-living"}, "body": None}}
+        response = {"status": 200, "text": '{"ResponseMetadata":{"RequestId":"r4"},"Result":{"Items":[]}}'}
+        for extra, expected in [([], True), (["--raw"], False)]:
+            stdout = io.StringIO()
+            with mock.patch.object(CS, "call_input", return_value=request), \
+                    mock.patch.object(CS, "send", return_value=response), redirect_stdout(stdout):
+                self.assertEqual(CS.main(["--action", "ListScene"] + extra), 0)
+            self.assertEqual("_evidence" in json.loads(stdout.getvalue()), expected)
+
+
         for response, expected in [({"status": 200, "text": '{"ResponseMetadata":{},"Result":{"Items":[]}}'}, 0),
                                    ({"status": 200, "text": '{"ResponseMetadata":{"Error":{"Code":"Denied"}}}'}, 1)]:
             stdout, stderr = io.StringIO(), io.StringIO()

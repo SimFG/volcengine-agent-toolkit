@@ -186,10 +186,104 @@ def safe_message(error, variables=None):
     return re.sub(r"https?://[^\s]+", "[URL REDACTED]", redact_text(str(error), variables))
 
 
+DESTRUCTIVE_ACTIONS = frozenset({
+    "DeleteScene", "DeleteAgenticScene", "DeleteAgenticDataSource",
+    "DeleteAgenticDataSourceSceneBinding", "DeleteAgenticSkill", "DeleteAgenticTool",
+    "DeleteAgenticVariable", "StopSceneInstance", "StopAgenticScene",
+    "RestartAgenticScene", "RestartSceneInstance",
+})
+DESTRUCTIVE_PREFIXES = ("Delete", "Stop", "Restart", "Release", "Publish", "Disable")
+MUTATE_PREFIXES = ("Create", "Update", "Upload", "Add", "Send", "Start", "Resume",
+                   "Include", "Bind", "Unbind")
+READ_PREFIXES = ("List", "Get", "Search", "Test", "Describe", "Query", "Check")
+TARGET_KEYS = frozenset({"Id", "SceneId", "DataSourceId", "SkillId", "ToolId", "ChatId",
+                         "VariableId", "BindingId", "ProjectId"})
+TARGET_NAME_KEYS = frozenset({"Name", "VariableName", "SkillName", "ToolName"})
+NAME_TARGET_ACTIONS = frozenset({"DeleteAgenticVariable", "DeleteAgenticSkill", "DeleteAgenticTool"})
+TARGET_LIST_KEYS = frozenset({"Ids", "SceneIds", "DataSourceIds", "SkillIds"})
+IMPACT_TEXT = {
+    "delete": "目标及其关联数据不可恢复；执行前必须核对引用关系与影响范围。",
+    "stop": "目标停止后在线服务中断，进行中的请求或会话可能失败；数据不会删除。",
+    "restart": "目标重启期间短时不可用，进行中的请求可能失败。",
+    "update": "会改写目标现有配置；必须先读当前对象并只改用户指定字段。",
+    "create": "会创建新资源并可能产生计费；创建成功不等于服务已可用。",
+    "default": "写操作会改变线上状态；执行前请核对目标、范围与影响。",
+}
+
+
+def action_risk(action):
+    """read / mutate / destructive；未知动作按 mutate 处理，不默认视为只读。"""
+    if not isinstance(action, str) or not action:
+        return "mutate"
+    if action in DESTRUCTIVE_ACTIONS or action.startswith(DESTRUCTIVE_PREFIXES):
+        return "destructive"
+    if action.startswith(READ_PREFIXES):
+        return "read"
+    if action.startswith(MUTATE_PREFIXES):
+        return "mutate"
+    return "mutate"
+
+
+def impact_text(action):
+    risk = action_risk(action)
+    if risk == "read":
+        return "只读查询，不改变线上状态。"
+    for prefix, text in IMPACT_TEXT.items():
+        if isinstance(action, str) and action.startswith(prefix.capitalize()):
+            return text
+    return IMPACT_TEXT["default"]
+
+
+def target_values(query, body):
+    values = []
+    for source in (query, body):
+        if not isinstance(source, dict):
+            continue
+        for key, value in source.items():
+            if key in TARGET_KEYS and isinstance(value, str) and value.strip():
+                values.append(value.strip())
+            elif key in TARGET_LIST_KEYS and isinstance(value, list):
+                values.extend(item.strip() for item in value
+                              if isinstance(item, str) and item.strip())
+    return sorted(set(values))
+
+
+def target_names(query, body):
+    values = []
+    for source in (query, body):
+        if not isinstance(source, dict):
+            continue
+        for key, value in source.items():
+            if key in TARGET_NAME_KEYS and isinstance(value, str) and value.strip():
+                values.append(value.strip())
+    return sorted(set(values))
+
+
+def confirmation_candidates(action, query, body):
+    """变量/Skill/Tool 按名称删除时以名称为准，其余动作优先使用资源 Id。"""
+    ids, names = target_values(query, body), target_names(query, body)
+    return (names or ids) if action in NAME_TARGET_ACTIONS else (ids or names)
+
+
+def enforce_destructive(action, query, body, options):
+    """破坏性动作必须携带与请求目标一致的 --confirm；没有令牌直接拒绝。"""
+    if action_risk(action) != "destructive":
+        return
+    confirm = str(options.get("--confirm") or "").strip()
+    targets = confirmation_candidates(action, query, body)
+    if not confirm:
+        raise ValueError(f"{action} 属破坏性操作：先用 --plan-only 核对目标与影响，"
+                         "再用 --confirm <真实Id 或唯一名称> 执行。")
+    if not targets:
+        raise ValueError(f"{action} 请求中没有可核验的目标 Id 或名称，拒绝执行。")
+    if confirm not in targets:
+        raise ValueError(f"--confirm 与请求目标不一致：{action} 未执行。")
+
+
 CALL_FLAGS = {"--action", "--method", "--query", "--query-file", "--param", "--body",
-              "--body-file", "--region", "--timeout", "--output-file"}
+              "--body-file", "--region", "--timeout", "--output-file", "--confirm"}
 UPLOAD_FLAGS = {"--url-file", "--file", "--headers-file", "--timeout"}
-SWITCHES = {"--compact", "--query-stdin", "--body-stdin"}
+SWITCHES = {"--compact", "--query-stdin", "--body-stdin", "--plan-only", "--raw"}
 
 
 def parse_arguments(argv):
@@ -239,22 +333,111 @@ def json_input(options, kind, stdin):
     return None if raw is None else object_json(raw, kind)
 
 
-def call_input(options, variables=None, stdin=None):
-    stdin = sys.stdin.read if stdin is None else stdin
-    if (options.get("--query-stdin") or options.get("--query") == "-") and (
-            options.get("--body-stdin") or options.get("--body") == "-"):
-        raise ValueError("query 与 body 不能同时读取 stdin。")
+def merged_query(options, stdin):
     query = json_input(options, "query", stdin) or {}
     for param in options.get("--param", []):
         key, separator, value = param.partition("=")
         if not key or not separator:
             raise ValueError("--param 必须使用 key=value 格式。")
         query[key] = value
-    return build_signed_request(action=options.get("--action"),
-                                method=options.get("--method", "GET").upper(), query=query,
-                                body=json_input(options, "body", stdin),
-                                region=options.get("--region", "cn-beijing"),
-                                credentials=credentials_from(variables))
+    return query
+
+
+def call_input(options, variables=None, stdin=None):
+    stdin = sys.stdin.read if stdin is None else stdin
+    if (options.get("--query-stdin") or options.get("--query") == "-") and (
+            options.get("--body-stdin") or options.get("--body") == "-"):
+        raise ValueError("query 与 body 不能同时读取 stdin。")
+    query = merged_query(options, stdin)
+    body = json_input(options, "body", stdin)
+    action = options.get("--action")
+    enforce_destructive(action, query, body, options)
+    request = build_signed_request(action=action,
+                                   method=options.get("--method", "GET").upper(), query=query,
+                                   body=body,
+                                   region=options.get("--region", "cn-beijing"),
+                                   credentials=credentials_from(variables))
+    request["meta"] = {"action": action, "method": request["method"],
+                       "region": options.get("--region", "cn-beijing"),
+                       "query": query, "body": body}
+    return request
+
+
+def request_plan(options, stdin=None):
+    """离线生成破坏性操作计划；不签名、不联网、不要求凭据。"""
+    stdin = sys.stdin.read if stdin is None else stdin
+    if (options.get("--query-stdin") or options.get("--query") == "-") and (
+            options.get("--body-stdin") or options.get("--body") == "-"):
+        raise ValueError("query 与 body 不能同时读取 stdin。")
+    action = options.get("--action")
+    if not action:
+        raise ValueError("--plan-only 需要 --action。")
+    query = merged_query(options, stdin)
+    body = json_input(options, "body", stdin)
+    targets = target_values(query, body)
+    names = target_names(query, body)
+    candidates = confirmation_candidates(action, query, body)
+    risk = action_risk(action)
+    return {"mode": "plan", "action": action, "risk": risk,
+            "method": options.get("--method", "GET").upper(),
+            "region": options.get("--region", "cn-beijing"),
+            "project": (body or {}).get("Project") or (query or {}).get("Project"),
+            "targetIds": targets, "targetNames": names,
+            "requiresConfirmation": risk == "destructive",
+            "impact": impact_text(action),
+            "executeHint": ("确认目标与影响后，用 --confirm " + candidates[0] + " 重新执行。"
+                            if candidates else "请求中未包含目标 Id 或唯一名称；补全目标后再确认。")}
+
+
+def evidence_for(request, response):
+    meta = request.get("meta") or {}
+    status = response.get("status")
+    try:
+        value = json.loads(response.get("text", ""))
+    except ValueError:
+        value = None
+    metadata = value.get("ResponseMetadata", {}) if isinstance(value, dict) else {}
+    metadata = metadata if isinstance(metadata, dict) else {}
+    error = metadata.get("Error") if isinstance(metadata.get("Error"), dict) else None
+    code = str((error or {}).get("Code") or "")
+    ok = 200 <= status < 300 and not error
+    if ok and not isinstance(value, dict):
+        # SSE 或纯文本响应没有 Result 结构，不能据此判定 empty。
+        verdict = "found" if str(response.get("text") or "").strip() else "empty"
+    elif ok:
+        result = value.get("Result")
+        empty = result in (None, {}, [], "")
+        if isinstance(result, dict) and result:
+            empty = all(item in (None, [], {}, "", 0) for item in result.values())
+        verdict = "empty" if empty else "found"
+    elif code.startswith(("NotFound", "NotExist", "NoSuch")) or status == 404:
+        verdict = "not_found"
+    elif status in (401, 403) or code in {"AccessDenied", "Forbidden", "Unauthorized",
+                                          "InvalidSecretToken", "SignatureDoesNotMatch",
+                                          "InvalidAccessKey", "InvalidSecretKey", "ExpiredToken"}:
+        verdict = "forbidden"
+    else:
+        verdict = "error"
+    return {"action": meta.get("action"), "method": meta.get("method"),
+            "region": meta.get("region"),
+            "project": meta.get("project") or (meta.get("query") or {}).get("Project")
+            or (meta.get("body") or {}).get("Project"),
+            "targetIds": target_values(meta.get("query"), meta.get("body")),
+            "httpStatus": status, "requestId": metadata.get("RequestId"),
+            "errorCode": code or None, "verdict": verdict,
+            "checkedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "source": "cloud"}
+
+
+def attach_evidence(text, evidence, compact=False):
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return text
+    if not isinstance(value, dict):
+        return text
+    value["_evidence"] = evidence
+    return json_text(value, compact) + "\n"
 
 
 def timeout_value(options):
@@ -376,6 +559,9 @@ call:
   --body-stdin           从 stdin 读取 body
   --region <region>      默认 cn-beijing
   --timeout <ms>         默认 60000；最大 600000
+  --confirm <Id|Name>    破坏性动作必填；必须与请求中的目标 Id 或唯一名称一致
+  --plan-only            只输出动作风险、目标、影响与确认提示；不联网、不要求凭据
+  --raw                  不附加 _evidence；仅输出原始响应（已脱敏）
   --output-file <path>   原始响应仅写入新文件，权限 0600；可能含敏感数据
   --compact             紧凑 JSON（终端输出默认脱敏）
 upload:
@@ -398,6 +584,9 @@ def main(argv=None):
     if command == "help" or options.get("help"):
         sys.stdout.write(HELP)
         return 0
+    if command == "call" and options.get("--plan-only"):
+        sys.stdout.write(json_text(request_plan(options)) + "\n")
+        return 0
     timeout = timeout_value(options)
     if command == "upload":
         request = upload_input(options)
@@ -406,10 +595,14 @@ def main(argv=None):
         (sys.stdout if ok else sys.stderr).write(json_text({"ok": ok, "statusCode": response["status"],
                                                           "bytes": len(request["payload"])}, True) + "\n")
         return 0 if ok else 1
-    response = send(call_input(options), timeout)
+    request = call_input(options)
+    response = send(request, timeout)
     if options.get("--output-file"):
         write_private_new_file(options["--output-file"], response["text"])
     output = classify_response(response, options.get("--compact", False))
+    if not options.get("--raw"):
+        output["text"] = attach_evidence(output["text"], evidence_for(request, response),
+                                         options.get("--compact", False))
     (sys.stdout if output["code"] == 0 else sys.stderr).write(output["text"])
     return output["code"]
 
