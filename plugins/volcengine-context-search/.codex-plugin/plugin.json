@@ -1,6 +1,6 @@
 {
   "name": "volcengine-context-search",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Query and manage Volcengine Context Search scenes, data, agents, models, and inference services through the production OpenAPI.",
   "author": {
     "name": "Volcengine Team",

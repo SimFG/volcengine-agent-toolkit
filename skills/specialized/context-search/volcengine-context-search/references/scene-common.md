@@ -41,6 +41,9 @@ python3 scripts/ctxsearch.py --action ListScene --param Project=default \
 - `GetSceneData` GET：Id（数据 ID）、SceneId、Project、SceneType、IsDemo=false、LoadDetails。
 - `ListSceneDataChunk` GET：SceneId、Project、SceneType、PageNumber、PageSize、IsDemo=false、DataId?。
 - `AddSceneData` POST：按场景上传文档组装；字段与多模态/旧场景差异不能混用。
+- `RemoveSceneData` POST：`{Project, SceneId, SceneType, Id}`，按数据 Id 删除单条数据，不可恢复；返回 200 不代表目标数据一定存在。`DeleteSceneData`、`BatchDeleteSceneData` 不是本服务 Action，会返回 `InvalidActionOrVersion`，不要猜相似动作名。
+
+批量清理数据时，先用 `ListSceneData` 列出完整范围（Id、文件名、年份/标签等判定依据），把范围、数量与影响一次性呈现给用户并取得确认，再逐条 `RemoveSceneData`；用户说“别一个个问”只免除逐条询问，不豁免这一次范围确认。删除后重新 `ListSceneData` 核对终态，不要把“已发请求”当成“已删除”。
 
 数据 `PROCESSING` / `SUCCEEDED` / `FAILED` 与场景 `RUNNING` / `STOPPED` 等是不同状态；不要把场景在线当作数据入库完成。
 

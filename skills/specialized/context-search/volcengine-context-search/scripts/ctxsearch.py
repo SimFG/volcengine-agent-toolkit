@@ -190,9 +190,9 @@ DESTRUCTIVE_ACTIONS = frozenset({
     "DeleteScene", "DeleteAgenticScene", "DeleteAgenticDataSource",
     "DeleteAgenticDataSourceSceneBinding", "DeleteAgenticSkill", "DeleteAgenticTool",
     "DeleteAgenticVariable", "StopSceneInstance", "StopAgenticScene",
-    "RestartAgenticScene", "RestartSceneInstance",
+    "RestartAgenticScene", "RestartSceneInstance", "RemoveSceneData",
 })
-DESTRUCTIVE_PREFIXES = ("Delete", "Stop", "Restart", "Release", "Publish", "Disable")
+DESTRUCTIVE_PREFIXES = ("Delete", "Stop", "Restart", "Release", "Publish", "Disable", "Remove")
 MUTATE_PREFIXES = ("Create", "Update", "Upload", "Add", "Send", "Start", "Resume",
                    "Include", "Bind", "Unbind")
 READ_PREFIXES = ("List", "Get", "Search", "Test", "Describe", "Query", "Check")
@@ -200,9 +200,12 @@ TARGET_KEYS = frozenset({"Id", "SceneId", "DataSourceId", "DatasourceId", "Skill
                          "ChatId", "VariableId", "BindingId", "ProjectId", "JobId", "NetworkId"})
 TARGET_NAME_KEYS = frozenset({"Name", "VariableName", "SkillName", "ToolName"})
 NAME_TARGET_ACTIONS = frozenset({"DeleteAgenticVariable", "DeleteAgenticSkill", "DeleteAgenticTool"})
+# 数据删除的确认对象是数据 Id；SceneId 只是定位上下文，不能单独作为删除确认令牌。
+DATA_TARGET_ACTIONS = frozenset({"RemoveSceneData"})
 TARGET_LIST_KEYS = frozenset({"Ids", "SceneIds", "DataSourceIds", "SkillIds"})
 IMPACT_TEXT = {
     "delete": "目标及其关联数据不可恢复；执行前必须核对引用关系与影响范围。",
+    "remove": "会删除目标数据且不可恢复；批量删除前必须先列出完整范围并取得一次确认。",
     "stop": "目标停止后在线服务中断，进行中的请求或会话可能失败；数据不会删除。",
     "restart": "目标重启期间短时不可用，进行中的请求可能失败。",
     "update": "会改写目标现有配置；必须先读当前对象并只改用户指定字段。",
@@ -260,9 +263,18 @@ def target_names(query, body):
 
 
 def confirmation_candidates(action, query, body):
-    """变量/Skill/Tool 按名称删除时以名称为准，其余动作优先使用资源 Id。"""
+    """变量/Skill/Tool 按名称删除时以名称为准；数据删除以数据 Id 为准；其余优先资源 Id。"""
     ids, names = target_values(query, body), target_names(query, body)
-    return (names or ids) if action in NAME_TARGET_ACTIONS else (ids or names)
+    if action in NAME_TARGET_ACTIONS:
+        return names or ids
+    if action in DATA_TARGET_ACTIONS:
+        data_ids = []
+        for source in (query, body):
+            value = source.get("Id") if isinstance(source, dict) else None
+            if isinstance(value, str) and value.strip():
+                data_ids.append(value.strip())
+        return sorted(set(data_ids)) or ids
+    return ids or names
 
 
 def enforce_destructive(action, query, body, options):

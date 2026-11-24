@@ -2,7 +2,7 @@
   "name": "volcengine-context-search",
   "displayName": "Volcengine Context Search",
   "description": "Query and manage Volcengine Context Search scenes, data, agents, models, and inference services through the production OpenAPI.",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "author": {
     "name": "Volcengine Team",
     "email": "volcengine@bytedance.com"
