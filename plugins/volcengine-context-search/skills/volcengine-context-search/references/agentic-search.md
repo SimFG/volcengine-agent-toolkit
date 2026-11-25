@@ -11,6 +11,8 @@
 - `StopAgenticScene` / `ResumeAgenticScene` / `RestartAgenticScene` POST：`{SceneId}`。
 - `DeleteAgenticScene` POST：`{Id}`，不要误用 SceneId。
 
+创建前先 `ListScene`/`GetAgenticScene` 按名称核对。若同名场景已存在，不要再调 `CreateAgenticScene`，也不要写“已创建/已新建/建”；只写“复用已有场景 `<name>`（`<Id>`）”，并按需向用户确认是复用还是新建。
+
 Agentic 场景没有 `GetSceneInstance`；状态、副本、规格、网络从 `GetAgenticScene` 的 `Status` 与 `Config` 读取，不要用多模态/旧场景的实例接口判断 Agentic 副本。`StopAgenticScene`、`RestartAgenticScene`、`DeleteAgenticScene` 属破坏性操作：先 `--plan-only`，说明对象、影响与恢复方式，等待用户明确确认后再 `--confirm`；用户说“先停掉/删了吧”不等于确认。
 
 初始化前确认推理服务、模型来源、VPC、子网、可用区和规格。Config 中需要 Replicas>0、LlmConfig.EndpointId/BaseUrl/Type、NetworkConfig.VPC.VpcId 和 NetworkConfig.Subnets[].SubnetId。Type=ARK 时需要明文 ApiKey，Type=SYSTEM 时需要 ApiKeyId 并检查内置模型已开通。不要把省略了 ApiKey 的加密详情原样回填；用受控 body 文件补入可用凭据。
@@ -41,7 +43,7 @@ Agentic 场景没有 `GetSceneInstance`；状态、副本、规格、网络从 `
 流程：请求上传信息 → 用 upload 子命令 PUT 本地文件 → 按返回 ObjectKey 注册 Skill。地址、对象键通过受控文件处理，不打印到日志。
 
 - `GetAgenticSkillUploadInfo` 正常返回 JSON 时也可能带非零退出码（响应体非标准错误结构），以 stdout 是否含 `UploadUrl`/`ObjectKey` 判断，而不是只看退出码；`--output-file` 目标已存在会以退出码 2 拒绝写入，改用新文件名。
-- `UpdateAgenticSkill` 后立即 `ListAgenticSkills` 可能仍显示旧 `Version`（元数据延迟或未随更新回写）。不要据此判定更新失败：改看 `UpdatedAt`、`Description` 是否变化，或用一次对话的 `skill_bindings[].revision` 哈希确认实际加载的是新内容。
+- `UpdateAgenticSkill` 后立即 `ListAgenticSkills` 可能仍显示旧 `Version`。不要据此判定更新失败，也不要断言“已知延迟/平台 bug”：只陈述“本次仍返回旧值，可能未及时回写”，改看 `UpdatedAt`、`Description` 是否变化，或用一次对话的 `skill_bindings[].revision` 哈希确认实际加载的是新内容。
 
 - `ListAgenticTools` GET：SceneId、Type=mcp。
 - `CreateAgenticMcpTool` / `UpdateAgenticTool` POST `{SceneId,Name,Type:"mcp",Description?,Config}`。

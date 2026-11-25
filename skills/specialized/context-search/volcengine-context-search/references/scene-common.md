@@ -62,7 +62,7 @@ python3 scripts/ctxsearch.py --action ListScene --param Project=default \
 
 以下均 POST：
 
-- `DescribeAINetwork`：`{JobId:SceneId, InstanceType, Type:"PRIVATE"|"PUBLIC"}`。必须带目标 `JobId` 与正确的 `InstanceType`/`Type`；缺目标或返回为空时只能写“未核实”，不能写“未创建”。
+- `DescribeAINetwork`：`{JobId:SceneId, InstanceType, Type:"PRIVATE"|"PUBLIC"}`。必须带目标 `JobId` 与正确的 `InstanceType`/`Type`；缺目标或返回为空时只能写“未核实”，不能写“未创建”。返回 `Result:{}` 时，交叉核对 `GetAgenticScene.Config.NetworkConfig` 与端点列表；仍拿不到数据就写“本次返回空，未核实是否存在”，不要写成“无/未创建/未配置”。
 - `CreateAINetwork`：`{Vpc, Subnet, JobId:SceneId, InstanceType, Type, EipId?}`；公网需要 EipId。
 - `DeleteAINetwork`：`{Id:NetworkId}`。
 - `UpdateIpAllowlist`：`{NetworkId, AllowList:[], AllowListGroup?:[]}`。
@@ -71,14 +71,14 @@ Agentic 用 InstanceType=AGENTIC_SCENE；多模态/旧场景用 SCENE。NetworkI
 
 只读准备接口：`DescribeZones` POST `{RegionId}`、`DescribeVpcs` POST `{ProjectName,PageSize,Keyword,LastIndex}`、`GetAIInstanceSpec` GET。这里的 VPC 包装接口不是原生 VPC 服务，不改用其他 Service。
 
-需要直接查子网等原生 VPC 资源时，用 `ve` 原生 CLI，按重复 flag 传数组，不要用 `.1`/`.2` 下标或 body：
+需要直接查子网等原生 VPC 资源时，用 `ve` 原生 CLI：
 
 ```bash
 ve vpc DescribeSubnets --region cn-beijing --SubnetIds.1=<id1> --SubnetIds.2=<id2>
 ```
 
-- 写成 `--SubnetIds.1=... --SubnetIds.2=...` 之外的 `--SubnetIds.N` 形式会报 `flag duplicated`；改用 `--body` 传数组会报 `SerializationError`。
-- 返回的条目数若大于请求的子网数，说明过滤没生效，不能把这些结果当作“已按 Id 过滤”的证据引用。
+- `.1/.2` 形式可以调用，但**过滤可能不生效**：返回里常包含未请求的子网，必须本地按 `SubnetId` 精确筛选后再引用。返回条目数大于请求数量时，不能把这些结果当作“已按 Id 过滤”的证据。
+- 不要用 `--body` 传数组（会报 `SerializationError`），也不要用其它 `--SubnetIds.N` 写法（可能报 `flag duplicated`）。
 
 ## 日志
 
