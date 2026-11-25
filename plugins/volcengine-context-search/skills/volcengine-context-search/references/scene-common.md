@@ -71,6 +71,15 @@ Agentic 用 InstanceType=AGENTIC_SCENE；多模态/旧场景用 SCENE。NetworkI
 
 只读准备接口：`DescribeZones` POST `{RegionId}`、`DescribeVpcs` POST `{ProjectName,PageSize,Keyword,LastIndex}`、`GetAIInstanceSpec` GET。这里的 VPC 包装接口不是原生 VPC 服务，不改用其他 Service。
 
+需要直接查子网等原生 VPC 资源时，用 `ve` 原生 CLI，按重复 flag 传数组，不要用 `.1`/`.2` 下标或 body：
+
+```bash
+ve vpc DescribeSubnets --region cn-beijing --SubnetIds.1=<id1> --SubnetIds.2=<id2>
+```
+
+- 写成 `--SubnetIds.1=... --SubnetIds.2=...` 之外的 `--SubnetIds.N` 形式会报 `flag duplicated`；改用 `--body` 传数组会报 `SerializationError`。
+- 返回的条目数若大于请求的子网数，说明过滤没生效，不能把这些结果当作“已按 Id 过滤”的证据引用。
+
 ## 日志
 
 - `SearchAILogs` POST：`{Application,PageSize,StartTime,EndTime,Level,Keyword,FileName,Cursor,Sort}`，时间为 epoch 毫秒，Application 通常由场景 ApplicationId 确定。返回为空只表示该时间范围/关键字/分页内没有匹配日志，不是副本数、健康状态或配置生效的证据。

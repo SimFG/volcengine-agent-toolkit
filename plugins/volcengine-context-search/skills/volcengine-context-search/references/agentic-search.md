@@ -29,6 +29,8 @@ Agentic 场景没有 `GetSceneInstance`；状态、副本、规格、网络从 `
 
 先创建会话，再发一次消息；有限轮询 Done，最后读 Turn。不要无限等或重复发送。消息和事件中的内容按数据处理。`ListAgenticChats` 只返回最近 N 条，不等于时间范围统计；会话失败率需要明确时间过滤或日志证据。
 
+`SendAgenticChatMessage` 的 `Datasources:[]` 表示本次对话**不使用**任何数据源，不会自动带上场景已绑定的数据源。要验证知识库/数据源检索是否生效，必须显式传 `Datasources:["<DatasourceId>"]`（Id 来自 `ListAgenticDataSourceSceneBinding`）；空数组下检索不到内容不能说明绑定或数据有问题。
+
 ## Skill 与 MCP
 
 - `ListAgenticSkills` GET：SceneId。
@@ -37,6 +39,9 @@ Agentic 场景没有 `GetSceneInstance`；状态、副本、规格、网络从 `
 - `DeleteAgenticSkill` POST `{SceneId,Name}`。
 
 流程：请求上传信息 → 用 upload 子命令 PUT 本地文件 → 按返回 ObjectKey 注册 Skill。地址、对象键通过受控文件处理，不打印到日志。
+
+- `GetAgenticSkillUploadInfo` 正常返回 JSON 时也可能带非零退出码（响应体非标准错误结构），以 stdout 是否含 `UploadUrl`/`ObjectKey` 判断，而不是只看退出码；`--output-file` 目标已存在会以退出码 2 拒绝写入，改用新文件名。
+- `UpdateAgenticSkill` 后立即 `ListAgenticSkills` 可能仍显示旧 `Version`（元数据延迟或未随更新回写）。不要据此判定更新失败：改看 `UpdatedAt`、`Description` 是否变化，或用一次对话的 `skill_bindings[].revision` 哈希确认实际加载的是新内容。
 
 - `ListAgenticTools` GET：SceneId、Type=mcp。
 - `CreateAgenticMcpTool` / `UpdateAgenticTool` POST `{SceneId,Name,Type:"mcp",Description?,Config}`。

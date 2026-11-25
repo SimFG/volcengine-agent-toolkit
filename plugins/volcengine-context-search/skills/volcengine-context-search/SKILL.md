@@ -9,6 +9,8 @@ description: 使用火山引擎 Context Search 正式 OpenAPI 管理和查询 Ag
 
 仅使用本 Skill 自带的 [scripts/ctxsearch.py](scripts/ctxsearch.py) 调用正式服务。不要调用外部 `ctxsearch` 命令，不依赖其他仓库。安装后先解析本 Skill 的实际绝对路径，所有命令中的脚本路径均以该安装位置为准；业务文件路径以用户工作目录为准。
 
+本 Skill 的安装目录形如 `<plugins cache>/volcengine-skills/volcengine-context-search/<version>/skills/volcengine-context-search/`，不要假设它在 `volcengine-core/` 下。路径不确定时先用一次 `find <plugins cache> -name SKILL.md -path '*context-search*'` 定位，不要反复 `cat` 猜测路径。
+
 要求 Python >= 3.9，仅使用标准库，无需其他运行时、构建或安装第三方包。
 
 - Host 固定 `open.volcengineapi.com`，Service 固定 `ctxsearch`，Version 固定 `2025-09-01`。
@@ -29,6 +31,28 @@ python3 scripts/ctxsearch.py --action ListScene --method GET \
 
 成功必须同时满足：退出码 0、无 `ResponseMetadata.Error`，且 `Result.Items` 是数组。空数组是成功的查询，不等于服务不可用。只显示场景名、类型、状态、项目与分页信息；不要为了验收创建场景。
 
+## 高频调用卡
+
+`--param`/`--query` 只用于 GET query；下面这些 POST 接口必须 `--method POST --body '<JSON>'`（或 `--body-file`）。把 POST 参数放进 `--param` 会返回 `Response body format error` 或 415；对 POST 接口省略 `--method POST` 会 405。
+
+```bash
+# 按名称列场景（GET）
+python3 scripts/ctxsearch.py --action ListScene --method GET \
+  --param Project=<project> --param SceneType=AGENTIC_SEARCH --param Name=<name> \
+  --param IncludePsr=true --param IncludeAgenticSearch=true --param IncludeMultimodalSearch=true \
+  --param PageNumber=1 --param PageSize=20
+
+# POST 接口一律用 --body
+python3 scripts/ctxsearch.py --action ListAgenticDataSources --method POST \
+  --body '{"Project":"<project>","PageNumber":1,"PageSize":50}'
+python3 scripts/ctxsearch.py --action ListAgenticDataSourceSceneBinding --method POST \
+  --body '{"Project":"<project>","SceneId":"<sceneId>","SceneType":"AGENTIC_SCENE"}'
+python3 scripts/ctxsearch.py --action DescribeAINetwork --method POST \
+  --body '{"JobId":"<sceneId>","InstanceType":"AGENTIC_SCENE","Type":"PRIVATE"}'
+python3 scripts/ctxsearch.py --action SendAgenticChatMessage --method POST \
+  --body '{"SceneId":"<sceneId>","ChatId":"<chatId>","Prompt":"<prompt>","Datasources":["<datasourceId>"],"ReasoningEffort":"none"}'
+```
+
 ## 场景路由
 
 先识别对象，再选择对应接口；不要混用场景生命周期。
@@ -45,7 +69,7 @@ python3 scripts/ctxsearch.py --action ListScene --method GET \
 
 1. **查询**：只执行满足当前需求的最少只读请求。用户只要“查询场景列表”时，可先查询 `Project=default` 的一页多模态场景并说明范围；要列全类型时按用户指定的类型分别查询，不把一页说成完整列表。其他 Project/类型由用户说明或继续选定。
 2. **确定目标**：操作具体场景时用列表确认名称、类型、Project 与 ID；多个同名或类型不明时让用户选择。不要猜 ID、模型、规格或网络。用户未给 Project 时先用 `default`，同一会话已出现 Project 则沿用；查不到时说明“在 <Project>/<Region> 的本次查询范围内未找到”，再请用户确认 Project/Region，不要用其他场景、demo 场景、历史快照或其他 Project 的结果顶替目标。
-3. **变更**：先读当前对象，保留已有嵌套配置，只改用户指定字段。创建场景前先只读核对目标 Project 和场景类型下是否已有同名或名称相近的对象；发现同名/相近对象时停止创建，向用户确认是复用现有对象还是新建，不要自行继续。只提交接口契约中已有且当前对象可读到的字段；字段不在契约或当前配置中时停止并说明“接口不支持/字段不可见”，不要猜字段、不要用全量 Update 重提交当前配置来试探，也不要把场景换成其他类型绕过。确认名称、Project、模型来源、规格、网络、文件范围、覆盖行为以及费用/中断影响，再执行写请求。批量删除场景数据时，先用 `ListSceneData` 列出完整范围并取得一次确认；用户说“别一个个问”只免除逐条询问，不豁免这次范围确认。破坏性动作先 `--plan-only`，再用真实目标 Id `--confirm`，见下节。
+3. **变更**：先读当前对象，保留已有嵌套配置，只改用户指定字段。创建场景前先只读核对目标 Project 和场景类型下是否已有同名或名称相近的对象；发现同名/相近对象时停止创建，向用户确认是复用现有对象还是新建，不要自行继续。只提交接口契约中已有且当前对象可读到的字段；字段不在契约或当前配置中时停止并说明“接口不支持/字段不可见”，不要猜字段、不要用全量 Update 重提交当前配置来试探，也不要把场景换成其他类型绕过。确认名称、Project、模型来源、规格、网络、文件范围、覆盖行为以及费用/中断影响，再执行写请求。批量删除场景数据时，先用 `ListSceneData` 列出完整范围并取得一次确认；用户说“别一个个问”只免除逐条询问，不豁免这次范围确认。破坏性动作先 `--plan-only`，结束本轮等待确认，再用真实目标 Id `--confirm`，见下节。
 4. **核验**：创建成功响应不代表服务已经可用；按目标接口读取状态。检索/对话仅对 `RUNNING` 场景执行。轮询要限制总时长（默认最长 10 分钟）、间隔和次数，超时报告实际状态。为任务设置调用预算：命名对象优先按名称/Id 直接查详情，不做全项目、全地域、全类型枚举；多场景任务先列一次目标集合，再逐项读详情；接近预算仍无结论时，返回已核实事实、未核实项和下一步，不无限重试。
 5. **返回**：拿到需求结果立即结束，不顺手绑定资源、发布、开通内置模型、补充用户没问的资源清单/字段或扩大查询范围。只写本次调用实际返回的内容；推断、经验判断和未查询项必须显式标注“推测/未核实”，不能写成确定结论。
 
@@ -54,7 +78,7 @@ python3 scripts/ctxsearch.py --action ListScene --method GET \
 ## 破坏性操作与证据
 
 - 破坏性动作（`Delete*`、`Remove*`、`Stop*`、`Restart*`）分两步：先 `--plan-only` 核对风险、目标 Id 与影响，再把目标真实 Id（变量/Skill/Tool 删除可用唯一名称）作为 `--confirm` 传入。数据删除 `RemoveSceneData` 的 `--confirm` 必须用数据 Id，不能用 SceneId 代替。缺少令牌、请求中没有目标 Id、或 `--confirm` 与请求目标不一致时，脚本以退出码 2 拒绝，不发送请求。
-- 用户说“删了吧”“先停掉”只是任务意图，不是对具体对象和影响的确认。先输出 `--plan-only` 的目标、影响与恢复方式，在同一轮等待用户明确确认后，再用 `--confirm` 执行；不要自行把用户原话当成确认令牌。用户说“别一个个问/直接删”只免除逐条询问，仍须先给出一次完整范围与影响并取得确认。
+- 用户说“删了吧”“先停掉”只是任务意图，不是对具体对象和影响的确认。先输出 `--plan-only` 的目标、影响与恢复方式，然后结束本轮，等待用户在下一条消息中明确确认，再用 `--confirm` 执行。禁止在输出 plan-only 的同一轮/同一回复里紧接着 `--confirm`；即使原任务写了“顺手清掉/删了吧”，也只算任务意图，不是确认令牌。用户说“别一个个问/直接删”只免除逐条询问，仍须先给出一次完整范围与影响并取得确认。
 - `--plan-only` 不签名、不联网、不要求凭据，输出 `risk`、`targetIds`、`requiresConfirmation`、`impact` 与 `executeHint`。它只证明“准备做什么”，不证明对象存在或操作可行；执行前仍需只读核对。
 - 每次 call 默认在响应中附加 `_evidence`：`action`、`method`、`region`、`project`、`targetIds`、`httpStatus`、`requestId`、`errorCode`、`verdict`（`found`/`empty`/`not_found`/`forbidden`/`error`）、`checkedAt`、`source=cloud`。`--raw` 可关闭该字段，仅在需要原始响应时使用。
 - 结论必须引用本次 `_evidence` 的 action、目标 Id 与 verdict。`empty` 只表示查询成功但结果为空，不等于对象不存在；`forbidden` 不等于资源不存在，也不能当成空列表参与“漂移/缺失”比较；不得用本地模拟、历史快照或其他项目的结果替代 cloud 调用。

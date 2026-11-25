@@ -14,6 +14,18 @@
 - `--region` 默认 `cn-beijing`；`--timeout` 默认 60000ms，上限 600000ms。
 - `--compact` 输出紧凑 JSON；`--output-file <新文件>` 保存原始响应。已存在的目标不会被覆盖，文件权限 0600。
 
+### GET 还是 POST：参数放 query 还是 body
+
+`--param` 只用于 GET 的 query 参数；POST 动作的业务字段必须放进 `--body`（或 `--body-file` / `--body-stdin`）。用 `--param` 给 POST 动作传业务字段，字段不会进入 JSON body，服务端会报 `Response body format error` / 415；完全不带 body 则可能报 405。判断方法：以动作契约为准，凡标为 POST 的 `List*/Create*/Update*/Delete*/Describe*/Send*/Search*/Group*` 等，都用 `--method POST --body '{...}'`。
+
+常见高频 POST 动作（必须用 `--body`）：
+
+- `ListAgenticDataSources`、`GetAgenticDataSource`、`Create/Update/DeleteAgenticDataSource`
+- `ListAgenticDataSourceSceneBinding`、`Create/DeleteAgenticDataSourceSceneBinding`
+- `SendAgenticChatMessage`、`SearchAILogs`、`GroupAILogs`
+- `DescribeAINetwork`、`CreateAINetwork`、`DeleteAINetwork`、`UpdateIpAllowlist`
+- `DescribeZones`、`DescribeVpcs`、`Stop/Resume/Restart/DeleteAgenticScene`
+
 正式 Host、Service 和 API Version 固定在脚本中；不允许通过 CLI、额外 header 或环境变量改变路由。不要尝试内部服务名。
 
 ## 凭据
@@ -59,7 +71,7 @@ python3 scripts/ctxsearch.py upload --url-file ./upload-url.txt \
 
 退出码：0 = HTTP 2xx 且无 API Error；1 = 非 2xx 或 `ResponseMetadata.Error`；2 = 参数、凭据、文件或网络错误。JSON 响应成功写 stdout，失败写 stderr；默认递归脱敏，同时清理已配置凭据值、自由文本中的带标签敏感值与 SSE JSON 数据。非 JSON 2xx 可为 SSE/纯文本，保留文本结构，不因此判失败；它不是场景列表的有效验收响应。无法根据字段识别的业务隐私仍需由 Agent 最小化展示，不宣称任意文本都已脱敏。
 
-`--output-file` 是未经脱敏的原始响应，只供下一步读取。用户只要列表时不需要保存原始响应。终端输出可能被截断；不要用截断后的 JSON 推断全量列表、总数或字段。需要完整响应时用 `--output-file` 保存后读取，或分页/按名称过滤。
+`--output-file` 是未经脱敏的原始响应，只供下一步读取。用户只要列表时不需要保存原始响应。终端输出可能被截断；不要用截断后的 JSON 推断全量列表、总数或字段。需要完整响应时用 `--output-file` 保存后读取，或分页/按名称过滤。目标文件已存在时脚本以退出码 2 报错且不覆盖，改用新的文件名或先确认旧文件可删再处理。
 
 常见错误：
 
